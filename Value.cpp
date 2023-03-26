@@ -28,7 +28,7 @@ class Value
 {
 public:
     double data;
-    vector<Value *> prev;
+    vector<Value *>* prev;
     OPERATION _op;
     string label;
     double grad;
@@ -41,12 +41,11 @@ public:
         this->grad = 0;
         this->label = label;
         this->activationFunction = activationFunction;
-
-        for (Value *v : children)
+        this->prev = new vector<Value *>();
+        for (Value *child : children)
         {
-            this->prev.push_back(v);
+            this->prev->push_back(child);
         }
-
     }
 
     Value(const Value &v)
@@ -56,11 +55,7 @@ public:
         this->grad = v.grad;
         this->label = v.label;
         this->activationFunction = v.activationFunction;
-        // copy the children
-        for (Value *child : v.prev)
-        {
-            this->prev.push_back(child);
-        }
+        this->prev = v.prev;
    }
 
     Value &operator=(const Value &v)
@@ -70,12 +65,7 @@ public:
         this->grad = v.grad;
         this->label = v.label;
         this->activationFunction = v.activationFunction;
-
-        // copy the children
-        for (Value *child : v.prev)
-        {
-            this->prev.push_back(child);
-        }
+        this->prev = v.prev;
         return *this;
     }
 
@@ -91,28 +81,47 @@ public:
 
     void backward()
     {
-        for (Value *v : this->prev)
+        for (Value *v : *this->prev)
         {
-            if (_op == ADD)
+            if (v->_op == ADD)
             {
-                prev[0]->grad += this->grad;
-                prev[1]->grad += this->grad;
+                vector<Value *> *prev = v->prev;
+                (*prev)[0]->grad += this->grad;
+                (*prev)[1]->grad += this->grad;
             }
-            else if (_op == MULTIPLY)
+            else if (v->_op == MULTIPLY)
             {
-                prev[0]->grad = prev[1]->data * this->grad;
-                prev[1]->grad = prev[0]->data * this->grad;
-            } else if (_op == TANH) {
+                vector<Value *> *prev = v->prev;
+                (*prev)[0]->grad += (*prev)[1]->data * this->grad;
+                (*prev)[1]->grad += (*prev)[0]->data * this->grad;
+            } else if (v->_op == TANH) {
                 v->grad += (1 - this->data * this->data) * this->grad;
-            } else if (_op == SIGMOID) {
+            } else if (v->_op == SIGMOID) {
                 v->grad += (1 - this->data) * this->data * this->grad;
-            } else if (_op == RELU) {
+            } else if (v->_op == RELU) {
                 v->grad += (this->data > 0 ? 1 : 0) * this->grad;
-            } else if (_op == POWER) {
-                prev[0]->grad = prev[1]->data * pow(prev[0]->data, prev[1]->data - 1) * this->grad;
-                prev[1]->grad = pow(prev[0]->data, prev[1]->data) * log(prev[0]->data) * this->grad;
+            } else if (v->_op == POWER) {
+                vector<Value *> *prev = v->prev;
+                (*prev)[0]->grad = (*prev)[1]->data * pow((*prev)[0]->data, (*prev)[1]->data - 1) * this->grad;
+                (*prev)[1]->grad = pow((*prev)[0]->data, (*prev)[1]->data) * log((*prev)[0]->data) * this->grad;
             }
         }
+    }
+
+    bool validOperation(Value *v) {
+        if (
+            v->_op == ADD ||
+            v->_op == SUBTRACT ||
+            v->_op == MULTIPLY ||
+            v->_op == POWER ||
+            v->_op == RELU ||
+            v->_op == SIGMOID ||
+            v->_op == TANH
+        ) {
+            return true;
+        }
+
+        return false;
     }
 
     vector<Value *> topologicalSort()
@@ -120,17 +129,17 @@ public:
         vector<Value *> topo;
         unordered_set<Value *> visited;
         function<void(Value *)> dfs = [&](Value *v) {
-            cout << "dfs: " << *v << endl;
             if (visited.find(v) != visited.end())
             {
                 return;
             }
             visited.insert(v);
-            for (Value *child : v->prev)
+            if (!this->validOperation(v)) {
+                return;
+            }
+            for (Value *child : *(v)->prev)
             {
-                if (visited.find(child) == visited.end() && child->_op != NONE) {
-                    dfs(child);
-                }
+                dfs(child);
             }
             topo.push_back(v);
         };
@@ -177,6 +186,7 @@ public:
     {
         Value *ptr = &other;
         Value *res = new Value(other.data + this->data, {this, ptr}, ADD);
+        res->label = this->label + "PLUS" + other.label;
         return *res;
     }
 
@@ -184,6 +194,7 @@ public:
     {
         Value *ptr = new Value(other);
         Value *res = new Value(other + this->data, {this, ptr}, ADD);
+        res->label = this->label + "PLUS" + to_string(other);
         return *res;
     }
 
@@ -205,6 +216,7 @@ public:
     {
         Value *ptr = &other;
         Value *res = new Value(other.data * this->data, {this, ptr}, MULTIPLY);
+        res->label = this->label + "MUL" + other.label;
         return *res;
     }
 
@@ -212,6 +224,7 @@ public:
     {
         Value *ptr = (Value *)&other;
         Value *res = new Value(other.data * this->data, {this, ptr}, MULTIPLY);
+        res->label = this->label + "MUL" + other.label;
         return *res;
     }
 
@@ -219,6 +232,7 @@ public:
     {
         Value *ptr = new Value(other);
         Value *res = new Value(other * this->data, {this, ptr}, MULTIPLY);
+        res->label = this->label + "MUL" + to_string(other);
         return *res;
     }
 
@@ -228,9 +242,13 @@ public:
     }
 
     void printPrevious() {
-        cout << "Previous: " << endl;
-        for (Value *v : this->prev) {
+        cout << "Previous of " << *this << endl;
+        for (Value *v : *(this)->prev) {
             cout << *v << endl;
+        }
+
+        for (Value *v : *(this)->prev) {
+            v->printPrevious();
         }
     }
 

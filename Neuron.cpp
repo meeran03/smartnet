@@ -23,27 +23,24 @@ public:
 
     Value predict(vector<double> inputs)
     {
-        Value sum(0.0);
+        Value *sum = new Value(0.0);
         for (int i = 0; i < inputs.size(); i++)
         {
-            Value ans = *weights[i] * inputs[i];
-            ans.setLabel(weights[i]->label + "*x" + to_string(i));
-            sum = sum + ans;
-            sum.setLabel("sum + " + ans.getLabel());
+            Value* ans = new Value(*weights[i] * inputs[i]);
+            *sum = *sum + *ans;
         }
-        sum = sum + bias;
-        sum.setLabel("sum + b");
-        Value *out = new Value(sum.sigmoid());
+        *sum = *sum + bias;
+        Value *out = new Value((*sum).sigmoid());
         out->setLabel("out");
         return *out;
     }
 
-    Value predict(vector<Value *> inputs)
+    Value predict(vector<Value > inputs)
     {
         Value sum(0.0);
         for (int i = 0; i < inputs.size(); i++)
         {
-            Value ans = *weights[i] * *inputs[i];
+            Value ans = *weights[i] * inputs[i];
             ans.setLabel(weights[i]->label + "*x" + to_string(i));
             sum = sum + ans;
             sum.setLabel("sum + " + ans.getLabel());
