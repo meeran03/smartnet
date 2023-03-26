@@ -1,0 +1,7 @@
+[
+{
+  "directory": "/mnt/Backup/Home/Python/AI/NN/build",
+  "command": "/usr/bin/g++  -isystem /usr/include/graphviz -g -std=gnu++14 -o CMakeFiles/untitled.dir/nn.cpp.o -c /mnt/Backup/Home/Python/AI/NN/nn.cpp",
+  "file": "/mnt/Backup/Home/Python/AI/NN/nn.cpp"
+}
+]

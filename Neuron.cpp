@@ -15,8 +15,10 @@ public:
         for (int i = 0; i < numOfInputs; i++)
         {
             weights.push_back(new Value(fRand(-1, 1)));
+            weights[i]->setLabel("w" + to_string(i));
         }
         bias = Value(fRand(-1, 1));
+        bias.setLabel("bias");
     }
 
     Value predict(vector<double> inputs)
@@ -25,23 +27,32 @@ public:
         for (int i = 0; i < inputs.size(); i++)
         {
             Value ans = *weights[i] * inputs[i];
-            sum = ans + sum ;
+            ans.setLabel(weights[i]->label + "*x" + to_string(i));
+            sum = sum + ans;
+            sum.setLabel("sum + " + ans.getLabel());
         }
         sum = sum + bias;
-        Value out = sum.sigmoid();
-        return out;
+        sum.setLabel("sum + b");
+        Value *out = new Value(sum.sigmoid());
+        out->setLabel("out");
+        return *out;
     }
 
-    Value predict(vector<Value> inputs)
+    Value predict(vector<Value *> inputs)
     {
         Value sum(0.0);
         for (int i = 0; i < inputs.size(); i++)
         {
-            sum += *weights[i] * inputs[i];
+            Value ans = *weights[i] * *inputs[i];
+            ans.setLabel(weights[i]->label + "*x" + to_string(i));
+            sum = sum + ans;
+            sum.setLabel("sum + " + ans.getLabel());
         }
         sum = sum + bias;
-        Value out = sum.sigmoid();
-        return out;
+        sum.setLabel("sum + b");
+        Value *out = new Value(sum.sigmoid());
+        out->setLabel("out");
+        return *out;
     }
 
     vector<Value *> parameters()

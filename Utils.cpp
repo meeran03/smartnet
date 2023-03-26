@@ -6,6 +6,10 @@ void getNodesAndEdges(Value *val, vector<Value *> &nodes, vector<vector<Value *>
             return;
         }
         nodes.push_back(v);
+        if (v->prev.size() == 0)
+        {
+            return;
+        }
         for (Value *child : v->prev)
         {
             dfs(child);
@@ -29,6 +33,8 @@ string getOperandType(Value *val)
     {
         return "*";
     }
+
+    return "";
 }
 
 // the graph moves from left to right
@@ -40,7 +46,6 @@ void printDiGraph(Value* val) {
     vector<vector<Value *>> edges;
     vector<Value *> nodes;
     getNodesAndEdges(val, nodes, edges);
-
     for (Value *v : nodes) {
         string uid = to_string(rand());
         dot += v->label + "[shape=record, label=\"{" + v->label + " | data " + to_string(v->data) + " | grad " + to_string(v->grad) + "}\"];";

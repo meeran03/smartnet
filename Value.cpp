@@ -15,7 +15,9 @@ enum OPERATION
 {
     NONE,
     ADD,
+    SUBTRACT,
     MULTIPLY,
+    POWER,
 
     RELU,
     SIGMOID,
@@ -32,38 +34,48 @@ public:
     double grad;
     string activationFunction;
 
-    Value() {
-
-    }
-
-    Value(double data, vector<Value *> children = {}, OPERATION _op = NONE, string label = "")
+    Value(double data = 0.0, vector<Value *> children = {}, OPERATION _op = NONE, string label = "")
     {
         this->data = data;
-        this->prev = children;
         this->_op = _op;
         this->grad = 0;
         this->label = label;
         this->activationFunction = activationFunction;
+
+        for (Value *v : children)
+        {
+            this->prev.push_back(v);
+        }
+
     }
 
     Value(const Value &v)
     {
         this->data = v.data;
-        this->prev = v.prev;
         this->_op = v._op;
         this->grad = v.grad;
         this->label = v.label;
         this->activationFunction = v.activationFunction;
-    }
+        // copy the children
+        for (Value *child : v.prev)
+        {
+            this->prev.push_back(child);
+        }
+   }
 
     Value &operator=(const Value &v)
     {
         this->data = v.data;
-        this->prev = v.prev;
         this->_op = v._op;
         this->grad = v.grad;
         this->label = v.label;
         this->activationFunction = v.activationFunction;
+
+        // copy the children
+        for (Value *child : v.prev)
+        {
+            this->prev.push_back(child);
+        }
         return *this;
     }
 
@@ -72,13 +84,19 @@ public:
         this->label = label;
     }
 
+    string getLabel()
+    {
+        return this->label;
+    }
+
     void backward()
     {
         for (Value *v : this->prev)
         {
             if (_op == ADD)
             {
-                v->grad += this->grad;
+                prev[0]->grad += this->grad;
+                prev[1]->grad += this->grad;
             }
             else if (_op == MULTIPLY)
             {
@@ -90,6 +108,9 @@ public:
                 v->grad += (1 - this->data) * this->data * this->grad;
             } else if (_op == RELU) {
                 v->grad += (this->data > 0 ? 1 : 0) * this->grad;
+            } else if (_op == POWER) {
+                prev[0]->grad = prev[1]->data * pow(prev[0]->data, prev[1]->data - 1) * this->grad;
+                prev[1]->grad = pow(prev[0]->data, prev[1]->data) * log(prev[0]->data) * this->grad;
             }
         }
     }
@@ -99,6 +120,7 @@ public:
         vector<Value *> topo;
         unordered_set<Value *> visited;
         function<void(Value *)> dfs = [&](Value *v) {
+            cout << "dfs: " << *v << endl;
             if (visited.find(v) != visited.end())
             {
                 return;
@@ -106,7 +128,9 @@ public:
             visited.insert(v);
             for (Value *child : v->prev)
             {
-                dfs(child);
+                if (visited.find(child) == visited.end() && child->_op != NONE) {
+                    dfs(child);
+                }
             }
             topo.push_back(v);
         };
@@ -134,8 +158,8 @@ public:
     Value sigmoid()
     {
         Value *ptr = this;
-        Value res(1.0 / (1.0 + exp(-this->data)), {ptr}, SIGMOID);
-        return res;
+        Value *res = new Value(1.0 / (1.0 + exp(-this->data)), {ptr}, SIGMOID);
+        return *res;
     }
 
     Value tanh()
@@ -152,68 +176,50 @@ public:
     Value operator+(Value &other)
     {
         Value *ptr = &other;
-        Value res(other.data + this->data, {this, ptr}, ADD);
-        return res;
+        Value *res = new Value(other.data + this->data, {this, ptr}, ADD);
+        return *res;
     }
 
     Value operator+(double other)
     {
-        Value res(other + this->data, {this}, ADD);
-        return res;
+        Value *ptr = new Value(other);
+        Value *res = new Value(other + this->data, {this, ptr}, ADD);
+        return *res;
     }
 
     Value operator-(Value &other)
     {
         Value *ptr = &other;
-        Value res(this->data - other.data, {this, ptr}, ADD);
-        return res;
+        Value *res = new Value(this->data - other.data, {this, ptr}, SUBTRACT);
+        return *res;
     }
 
     Value operator-(double other)
     {
-        Value res(this->data - other, {this}, ADD);
-        return res;
+        Value *ptr = new Value(other);
+        Value *res = new Value(this->data - other, {this, ptr}, SUBTRACT); 
+        return *res;
     }
 
     Value operator*(Value &other)
     {
         Value *ptr = &other;
-        Value res(other.data * this->data, {this, ptr}, MULTIPLY);
-        return res;
+        Value *res = new Value(other.data * this->data, {this, ptr}, MULTIPLY);
+        return *res;
     }
 
     Value operator*(const Value &other)
     {
         Value *ptr = (Value *)&other;
-        Value res(other.data * this->data, {this, ptr}, MULTIPLY);
-        return res;
+        Value *res = new Value(other.data * this->data, {this, ptr}, MULTIPLY);
+        return *res;
     }
 
     Value operator*(double other)
     {
-        Value res(other * this->data, {this}, MULTIPLY);
-        return res;
-    }
-
-    Value &operator+=(Value &other)
-    {
-        Value *ptr = &other;
-        Value res(other.data + this->data, {this, ptr}, ADD);
-        return res;
-    }
-
-    Value &operator+=(const Value &other)
-    {
-        Value *ptr = (Value *)&other;
-        double ans = other.data + this->data;
-        Value res(ans, {this, ptr}, ADD);
-        return res;
-    }
-
-    Value &operator+=(double other)
-    {
-        Value res(other + this->data, {this}, ADD);
-        return res;
+        Value *ptr = new Value(other);
+        Value *res = new Value(other * this->data, {this, ptr}, MULTIPLY);
+        return *res;
     }
 
     bool operator<(const Value &other) const
@@ -221,14 +227,18 @@ public:
         return this->data < other.data;
     }
 
-    void printPrevious()
-    {
-        cout << "[";
-        for (Value *v : this->prev)
-        {
-            cout << *v << ",";
+    void printPrevious() {
+        cout << "Previous: " << endl;
+        for (Value *v : this->prev) {
+            cout << *v << endl;
         }
-        cout << "]\n";
+    }
+
+    // power operator
+    Value operator^(double other)
+    {
+        Value* res = new Value(pow(this->data, other), {this}, POWER);
+        return *res;
     }
 
     friend ostream &operator<<(ostream &out, const Value &obj);
@@ -236,6 +246,6 @@ public:
 
 ostream &operator<<(ostream &os, const Value &obj)
 {
-    os << "Value(data=" << obj.data << ")";
+    os << "Value(label=" << obj.label << ",data=" << obj.data << " ,grad=" << obj.grad << ")";
     return os;
 }

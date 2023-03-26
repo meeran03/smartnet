@@ -3,149 +3,48 @@
 #include <graphviz/cgraph.h>
 #include "Utils.cpp"
 #include "Neuron.cpp"
+#include "Layer.cpp"
+#include "MLP.cpp"
 
-class Layer
+void train(MLP &mlp, vector<vector<double>> &data, vector<double> &labels, int epochs, double learning_rate)
 {
-    vector<Neuron *> neurons;
-
-public:
-    Layer(int numOfNeurons, int numOfInputs)
+    vector<vector<Value>> preds;
+    for (int i = 0; i < epochs; i++)
     {
-        for (int i = 0; i < numOfNeurons; i++)
+        preds = {};
+        Value loss(0.0);
+        for (int j = 0; j < data.size(); j++)
         {
-            neurons.push_back(new Neuron(numOfInputs));
-        }
-    }
-
-    vector<Value *> parameters()
-    {
-        vector<Value *> res;
-        for (Neuron *n : neurons)
-        {
-            vector<Value *> params = n->parameters();
-            for (Value *p : params)
+            vector<Value> pred = mlp.predict(data[j]);
+            preds.push_back(pred);
+            for (Value p : pred)
             {
-                res.push_back(p);
+                Value ans = (p - labels[j]) ^ 2;
+                ans.setLabel("ans");
+                loss = loss + ans;
             }
-        }
-        return res;
-    }
 
-    vector<Value> predict(vector<double> inputs)
-    {
-        vector<Value> res;
-        for (Neuron *n : neurons)
+        }
+
+        for (Value *param : mlp.parameters())
         {
-            res.push_back(n->predict(inputs));
+            param->grad = 0;
         }
-        return res;
-    }
 
-    vector<Value> predict(vector<Value> inputs)
-    {
-        vector<Value> res;
-        for (Neuron *n : neurons)
+        loss._backward();
+        for (Value *param : mlp.parameters())
         {
-            res.push_back(n->predict(inputs));
+            cout << "Param: " << *param << endl;
+            cout << "(LEARNING_RATE * param->grad)" << (learning_rate * param->grad) << endl;
+            param->data = param->data - (learning_rate * param->grad);
+            cout << "Param: " << *param << endl;
         }
-        return res;
+        cout << "Loss: " << loss.data << endl;
     }
-
-    friend ostream &operator<<(ostream &os, const Layer &l);
-};
-
-ostream &operator<<(ostream &os, const Layer &l)
-{
-    cout << "Layer: of [" << endl;
-    for (Neuron *n : l.neurons)
-    {
-        cout << n;
-        if (n != l.neurons.back())
-        {
-            cout << ", ";
-        }
-    }
-    cout << "]" << endl;
-    return os;
 }
 
-class MLP
-{
-    vector<Layer *> layers;
 
-public:
-    MLP(int numberOfInputs, vector<int> layersConfig)
-    {
-        vector<int> config = {numberOfInputs};
-        for (int i : layersConfig)
-        {
-            config.push_back(i);
-        }
-        for (int i = 0; i < config.size() - 1; i++)
-        {
-            layers.push_back(new Layer(config[i + 1], config[i]));
-        }
-    }
-
-    vector<Value *> parameters()
-    {
-        vector<Value *> res;
-        for (Layer *l : layers)
-        {
-            vector<Value *> params = l->parameters();
-            for (Value *p : params)
-            {
-                res.push_back(p);
-            }
-        }
-        return res;
-    }
-
-    vector<Value> predict(vector<double> inputs)
-    {
-        vector<Value> res;
-        for (Layer *l : layers)
-        {
-            res = l->predict(inputs);
-        }
-        return res;
-    }
-
-    vector<Value> predict(vector<Value> inputs)
-    {
-        vector<Value> res;
-        for (Layer *l : layers)
-        {
-            res = l->predict(inputs);
-        }
-        return res;
-    }
-
-    friend ostream &operator<<(ostream &os, const MLP &m);
-};
-
-ostream &operator<<(ostream &os, const MLP &m)
-{
-    cout << "MLP: of [" << endl;
-    for (Layer *l : m.layers)
-    {
-        cout << l;
-        if (l != m.layers.back())
-        {
-            cout << ", ";
-        }
-    }
-    cout << "]" << endl;
-    return os;
-}
-
-int main()
-{
-    srand((unsigned)time(NULL));
-    rand();
-    rand();
-    rand();
-
+void exampleTrain() {
     MLP mlp(3, {4, 4, 1});
 
     vector<vector<double>> data = {
@@ -158,49 +57,23 @@ int main()
 
     vector<double> labels = {1.0, -1.0, -1.0, 1.0};
 
-    const int EPOCHS = 1000;
+    const int EPOCHS = 1;
     const double LEARNING_RATE = 0.01;
-    vector<vector<Value>> preds;
-    for (int i = 0; i < EPOCHS; i++)
-    {
-        preds = {};
-        Value loss;
-        for (int j = 0; j < data.size(); j++)
-        {
-            vector<Value> pred = mlp.predict(data[j]);
-            preds.push_back(pred);
-            for (Value p : pred)
-            {
-                loss += (p - labels[j]) * (p - labels[j]);
-            }
 
-        }
+    train(mlp, data, labels, EPOCHS, LEARNING_RATE);
+}
 
-        for (Value *param : mlp.parameters())
-        {
-            param->grad = 0;
-        }
 
-        loss.backward();
+int main() {
+    srand((unsigned)time(NULL));
+    rand();
+    rand();
+    rand();
 
-        for (Value *param : mlp.parameters())
-        {
-            param->data -= LEARNING_RATE * param->grad;
-        }
-
-        if (i % 100 == 0)
-        {
-            cout << "Loss: " << loss.data << endl;
-        }
-    }
-
-    cout << "Predictions: " << endl;
-    for (vector<Value> pred : preds)
-    {
-        for (Value p : pred)
-        {
-            cout << p.data << " ";
-        }
-        cout << endl;
-    }
+    Neuron n(1);
+    vector<double> inputs = {2.0};
+    Value yhat = n.predict(inputs);
+    yhat.setLabel("yhat");
+    yhat.printPrevious();
+    // yhat._backward();
 }
